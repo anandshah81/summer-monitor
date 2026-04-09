@@ -1556,7 +1556,7 @@ def main():
     if xp:
         print(f"  Saved: {Path(xp).resolve()}")
         try:
-            import os; os.startfile(str(Path(xp).resolve()))
+            os.startfile(str(Path(xp).resolve()))
         except Exception:
             pass
 
