@@ -1,0 +1,5 @@
+summer_strength_monitor.html
+output/
+__pycache__/
+*.pyc
+.env
