@@ -191,15 +191,18 @@ def fetch_city(city, dates):
                 "lastYearFull":None,"baseline":None,"requested_lat":lat,"requested_lon":lon,
                 "resolved":None,"source":"skipped"}
     else:
-        # Open-Meteo for all other cities
+        # Open-Meteo for all other cities — with delays between calls to avoid rate limiting
         try: curr, resolved = fetch_om(lat, lon, dates["start_current"], dates["end_current"], use_arch)
         except:
             try: curr, resolved = fetch_om(lat, lon, dates["start_current"], dates["end_current"], not use_arch)
             except: curr = None
+        time.sleep(0.5)
         try: lc, _ = fetch_om(lat, lon, dates["start_last"], dates["end_last_compare"], True)
         except: lc = None
+        time.sleep(0.5)
         try: lf, _ = fetch_om(lat, lon, dates["start_last"], dates["end_last_full"], True)
         except: lf = None
+        time.sleep(0.5)
         try: bl, _ = fetch_om(lat, lon, dates["baseline_start"], dates["baseline_end"], True)
         except: bl = None
 
@@ -212,6 +215,7 @@ def fetch_city(city, dates):
 
 def fetch_all(dates):
     results = {}
+    failed = []
     for i, c in enumerate(CITIES):
         is_vc = c.get("source") == "vc" and VC_KEY
         skip_vc = c.get("source") == "vc" and not VC_KEY
@@ -224,7 +228,10 @@ def fetch_all(dates):
             d = fetch_city(c, dates)
             n = len(d["current"]["temperature_2m_max"]) if d["current"] else 0
             r = d.get("resolved")
-            if r and not is_vc:
+            if n == 0:
+                failed.append(c)
+                print(f"0d — will retry")
+            elif r and not is_vc:
                 drift = ((r["lat"]-c["lat"])**2+(r["lon"]-c["lon"])**2)**0.5 * 111
                 info = f"resolved: {r['lat']:.2f},{r['lon']:.2f} elev:{r['elevation']}m"
                 if drift > 5: info += f" ⚠ {drift:.0f}km drift"
@@ -235,10 +242,31 @@ def fetch_all(dates):
             results[c["name"]] = d
         except Exception as e:
             print(f"FAIL: {e}")
+            failed.append(c)
             results[c["name"]] = {"city":c["name"],"region":c["region"],"current":None,
                 "lastYearCompare":None,"lastYearFull":None,"baseline":None,
                 "requested_lat":c["lat"],"requested_lon":c["lon"],"resolved":None,"source":"failed"}
-        time.sleep(0.3 if not is_vc else 0.5)  # slightly slower for VC to respect rate limits
+        time.sleep(1.0 if not is_vc else 1.5)
+
+    # Retry failed cities after a longer pause
+    if failed:
+        print(f"\n  Retrying {len(failed)} cities after 10s pause...")
+        time.sleep(10)
+        for c in failed:
+            is_vc = c.get("source") == "vc" and VC_KEY
+            print(f"  [RETRY] {c['name']}...", end=" ", flush=True)
+            try:
+                d = fetch_city(c, dates)
+                n = len(d["current"]["temperature_2m_max"]) if d["current"] else 0
+                if n > 0:
+                    print(f"OK ({n}d)")
+                    results[c["name"]] = d
+                else:
+                    print(f"still 0d")
+            except Exception as e:
+                print(f"FAIL: {e}")
+            time.sleep(2)
+
     return results
 
 # ═══════════════════════════════════════════════════════════════
