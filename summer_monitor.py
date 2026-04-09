@@ -191,18 +191,18 @@ def fetch_city(city, dates):
                 "lastYearFull":None,"baseline":None,"requested_lat":lat,"requested_lon":lon,
                 "resolved":None,"source":"skipped"}
     else:
-        # Open-Meteo for all other cities — with delays between calls to avoid rate limiting
+        # Open-Meteo for all other cities — small delays between calls
         try: curr, resolved = fetch_om(lat, lon, dates["start_current"], dates["end_current"], use_arch)
         except:
             try: curr, resolved = fetch_om(lat, lon, dates["start_current"], dates["end_current"], not use_arch)
             except: curr = None
-        time.sleep(0.5)
+        time.sleep(0.2)
         try: lc, _ = fetch_om(lat, lon, dates["start_last"], dates["end_last_compare"], True)
         except: lc = None
-        time.sleep(0.5)
+        time.sleep(0.2)
         try: lf, _ = fetch_om(lat, lon, dates["start_last"], dates["end_last_full"], True)
         except: lf = None
-        time.sleep(0.5)
+        time.sleep(0.2)
         try: bl, _ = fetch_om(lat, lon, dates["baseline_start"], dates["baseline_end"], True)
         except: bl = None
 
@@ -246,12 +246,12 @@ def fetch_all(dates):
             results[c["name"]] = {"city":c["name"],"region":c["region"],"current":None,
                 "lastYearCompare":None,"lastYearFull":None,"baseline":None,
                 "requested_lat":c["lat"],"requested_lon":c["lon"],"resolved":None,"source":"failed"}
-        time.sleep(1.0 if not is_vc else 1.5)
+        time.sleep(0.5 if not is_vc else 0.8)
 
-    # Retry failed cities after a longer pause
+    # Retry failed cities after a pause
     if failed:
-        print(f"\n  Retrying {len(failed)} cities after 10s pause...")
-        time.sleep(10)
+        print(f"\n  Retrying {len(failed)} cities after 5s pause...")
+        time.sleep(5)
         for c in failed:
             is_vc = c.get("source") == "vc" and VC_KEY
             print(f"  [RETRY] {c['name']}...", end=" ", flush=True)
@@ -265,7 +265,7 @@ def fetch_all(dates):
                     print(f"still 0d")
             except Exception as e:
                 print(f"FAIL: {e}")
-            time.sleep(2)
+            time.sleep(1.5)
 
     return results
 
