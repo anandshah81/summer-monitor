@@ -59,7 +59,7 @@ CITIES = [
 
 
 OUTPUT_FILE = "summer_strength_monitor.html"
-VC_KEY = None  # Set via VC_KEY env var or --vc-key arg
+VC_KEY = "CHCUY53ERJVVH9EXTNJRRZEW9"  # Set via VC_KEY env var or --vc-key arg
 
 # ═══════════════════════════════════════════════════════════════
 # DATA FETCHING
@@ -524,7 +524,7 @@ def generate_html(stats, dates):
     mpan_dev = round(mpac - mpan_norm, 1) if mpan_norm else 0
     mn_above = sum(1 for s in stats if s["mar_dev"] is not None and s["mar_dev"] >= 1.5)
 
-    if pssi>1.05: ve,vt,vc = "🔥","Materially Stronger Summer — Bullish for VBL, Dabur, Havells","#F87171"
+    if pssi>1.05: ve,vt,vc = "🔥","Materially Stronger Summer — Bullish for Summer Plays","#F87171"
     elif pssi<0.95: ve,vt,vc = "❄️","Weaker Summer — Cautious on Summer Plays","#60A5FA"
     else: ve,vt,vc = "➡️","In-Line Summer — No Clear Alpha Signal","#A8A29E"
 
@@ -767,7 +767,7 @@ tr:hover td{background:rgba(251,191,36,0.03);}
       <strong>Heating Rate:</strong> Weekly avg temp change — steeper climb = faster onset. Green dashed = 5yr normal rate.<br>
       <strong>Cumul Hot Days:</strong> Running total of city-days ≥30°C (cyan) + ≥35°C (amber). Directly drives beverage/cooling demand.<br>
       <strong>Heatmap:</strong> Monthly avg temp deviation from 5yr normal per city. Red ≥ +3°C, orange ≥ +1.5°C, blue ≤ -1.5°C.<br>
-      <strong>Data:</strong> Open-Meteo (ERA5 + hi-res). <strong>Refresh:</strong> <code>python summer_monitor.py</code>
+      <strong>Data:</strong> Open-Meteo (ERA5 + hi-res) + Visual Crossing (Mumbai METAR).
     </div>
   </div>
 
@@ -780,7 +780,7 @@ tr:hover td{background:rgba(251,191,36,0.03);}
 
       <div style="margin-bottom:20px;padding:14px;border-radius:8px;background:var(--bg3);border-left:3px solid var(--a4)">
         <strong style="color:var(--a4);font-size:13px">Quick Guide: How to Read This Dashboard</strong><br>
-        ① Check the <strong>SSI</strong> in the header — above 1.05 = stronger summer YoY (bullish VBL/Dabur/Havells), below 0.95 = weaker.<br>
+        ① Check the <strong>SSI</strong> in the header — above 1.05 = stronger summer YoY (bullish for summer-sensitive names), below 0.95 = weaker.<br>
         ② Check <strong>"vs 5yr Normal"</strong> — even if SSI is in-line, a +2°C deviation means absolute heat levels are elevated (supports estimates).<br>
         ③ Check <strong>Cumulative Hot Days</strong> chart — if the 2026 line is above 2025 at the same point, more consumers across more cities are in heat-driven buying mode.<br>
         ④ Check <strong>Onset Tracker</strong> — negative days = summer arrived earlier = more selling days in the quarter.
@@ -843,12 +843,12 @@ tr:hover td{background:rgba(251,191,36,0.03);}
       <strong style="color:var(--t1);font-size:13px">━━ ONSET TRACKER ━━</strong><br><br>
       Tracks the <strong>first date</strong> each city's max temperature crosses two thresholds:<br>
       <strong>≥30°C</strong> — Fan/cooler consideration starts. AC showroom footfall picks up. Consumer durables lead indicator.<br>
-      <strong>≥35°C</strong> — Impulse beverage territory. Non-linear demand uplift for VBL (cold drinks), Dabur (glucose, Real juices),
-      ice cream (HUL Kwality Walls). This is the threshold that drives quarterly volume surprises.<br><br>
+      <strong>≥35°C</strong> — Impulse beverage territory. Non-linear demand uplift for cold drinks, glucose, juices,
+      ice cream. This is the threshold that drives quarterly volume surprises.<br><br>
       <strong>Delta:</strong> Negative = 2026 crossed earlier than 2025 (green, bullish — more selling days).<br>
       Positive = 2026 crossed later (red — fewer selling days so far).<br>
       <strong>Example:</strong> If Delhi crosses 35°C on Mar 7 (2026) vs Mar 25 (2025) = <span style="color:var(--g4)">18d earlier</span>.
-      At VBL's daily run-rate, that's 18 extra days of peak demand in Q1 FY27.<br><br>
+      At peak-season daily run-rates, that's 18 extra days of peak demand in Q1.<br><br>
 
       <strong style="color:var(--t1);font-size:13px">━━ CHARTS ━━</strong><br><br>
       <strong>Avg Temp:</strong> Daily pan-India average max temperature. Amber = 2026, grey dashed = 2025 full season, green dashed = 5yr normal.
@@ -864,23 +864,14 @@ tr:hover td{background:rgba(251,191,36,0.03);}
       Shows each city's deviation from its own 5yr normal for each month (Jan-Jun).
       Color-coded: deep red = well above normal (+4°C+), orange = above (+2°C), grey = normal, blue = below.<br>
       <strong>How to read:</strong> Scan horizontally to see a city's seasonal progression. Scan vertically to see which month was the anomaly.
-      If March is deep red across North India but grey in South → the heat belt thesis is concentrated in the right geography for VBL/Dabur.<br><br>
-
-      <span style="color:var(--r4)">HIGH:</span> VBL, Dabur, Havells, Crompton, Voltas, Blue Star — revenues directly driven by summer intensity. Q1 FY27 (Apr-Jun) is 35-40% of annual volumes for VBL.<br>
-      <span style="color:var(--a4)">MEDIUM:</span> HUL (Kwality Walls, beverages mix shift), Marico (hair oils seasonal) — meaningful but not dominant seasonal driver.<br>
-      <span style="color:var(--b4)">LOW:</span> Nestlé, Titan, DMart, Britannia — minor seasonal mix impact. Not a primary thesis driver.<br><br>
+      If March is deep red across North India but grey in South → the heat belt thesis is concentrated in the right geography.<br><br>
 
       <strong style="color:var(--t1);font-size:13px">━━ KEY RISKS & CAVEATS ━━</strong><br><br>
       • <strong>Western disturbances</strong> can bring temporary relief (5-10°C drop for 2-3 days), pulling down weekly averages. This is noise, not signal — look at the trend, not individual days.<br>
       • <strong>Grid resolution bias:</strong> Open-Meteo reads 1-2°C below IMD station data due to grid averaging. All comparisons are internally consistent (same grid cell both years), so relative signals are valid.<br>
       • <strong>Extreme heat → drought risk:</strong> If heat persists without rain, rural demand can be hurt (negative for FMCG distribution). Monitor rainfall chart.<br>
       • <strong>Crude oil / LPG prices:</strong> Iran conflict → oil spike → disposable income squeeze could offset volume gains from heat. Consider macro overlay.<br>
-      • <strong>SSI stabilizes by late April</strong> — with 50+ days of data, the index becomes reliable. Early March readings (21 days) can be noisy.<br><br>
-
-      <strong style="color:var(--t1);font-size:13px">━━ HOW TO REFRESH ━━</strong><br><br>
-      Run <code style="color:var(--a4)">python summer_monitor.py</code> in CMD. Takes ~90 seconds for 30 cities.<br>
-      Opens the updated HTML automatically. Re-run weekly for tracking, or daily during critical heatwave periods.<br>
-      Validate: <code style="color:var(--a4)">python summer_monitor.py --validate</code> shows resolved coordinates and cross-check URLs.
+      • <strong>SSI stabilizes by late April</strong> — with 50+ days of data, the index becomes reliable. Early March readings (21 days) can be noisy.<br>
 
     </div>
   </div>
