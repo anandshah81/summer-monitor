@@ -4,7 +4,7 @@ echo   Summer Monitor - Refresh and Push to Web
 echo ============================================
 echo.
 
-cd /d C:\Users\admin\Downloads\summer-monitor
+cd /d C:\Users\admin\claude\summer-monitor
 
 echo Running summer_monitor.py...
 python summer_monitor.py
