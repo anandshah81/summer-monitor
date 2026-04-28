@@ -337,6 +337,50 @@ def compute_stats(data):
     ssi = ts*0.5 + max(0.5, min(2.0, hs))*0.3 + min(rs,1.5)*0.2
     signal = "STRONGER" if ssi>1.05 else ("WEAKER" if ssi<0.95 else "IN-LINE")
 
+    # ── Recency SSI (7d and 14d trailing windows vs same calendar window last year) ──
+    # Uses the same formula as seasonal SSI but on the last N days of available data.
+    # Critical for client-facing reads — last 1-2 weeks drive the narrative, not Mar-to-date averages.
+    rain_arr_c = curr.get("precipitation_sum",[]) or []
+    rain_arr_p = prev.get("precipitation_sum",[]) or []
+    def _recent_ssi(n):
+        # Align the trailing window across both years using min length
+        m = min(len(tmax_c), len(tmax_p))
+        if m == 0: return None, None, None, None, None, None
+        n_eff = min(n, m)
+        cw_t = [t for t in tmax_c[m-n_eff:m] if t is not None]
+        pw_t = [t for t in tmax_p[m-n_eff:m] if t is not None]
+        if not cw_t or not pw_t: return None, None, None, None, None, None
+        cw_avg = sum(cw_t)/len(cw_t)
+        pw_avg = sum(pw_t)/len(pw_t)
+        cw_h35 = sum(1 for t in tmax_c[m-n_eff:m] if t is not None and t >= 35)
+        pw_h35 = sum(1 for t in tmax_p[m-n_eff:m] if t is not None and t >= 35)
+        # Rainfall slice (precip arrays should be same length as tmax arrays)
+        cw_rain_slice = [r for r in rain_arr_c[m-n_eff:m] if r is not None] if len(rain_arr_c) >= m else []
+        pw_rain_slice = [r for r in rain_arr_p[m-n_eff:m] if r is not None] if len(rain_arr_p) >= m else []
+        cw_rain = sum(cw_rain_slice) if cw_rain_slice else 0
+        pw_rain = sum(pw_rain_slice) if pw_rain_slice else 0
+        # Components (same caps as seasonal SSI)
+        ts_r = cw_avg / max(pw_avg, 1)
+        if pw_h35 >= 3:
+            hs_r = max(0.5, min(2.0, cw_h35 / pw_h35))
+        elif cw_h35 > pw_h35:
+            hs_r = min(1.3, 1.0 + (cw_h35 - pw_h35) * 0.08)
+        elif cw_h35 < pw_h35:
+            hs_r = max(0.7, 1.0 - (pw_h35 - cw_h35) * 0.08)
+        else:
+            hs_r = 1.0
+        rs_r = (pw_rain / max(cw_rain, 0.1)) if pw_rain > 0 else (1.1 if cw_rain < 1 else 0.9)
+        ssi_r = ts_r*0.5 + max(0.5, min(2.0, hs_r))*0.3 + min(rs_r,1.5)*0.2
+        return round(ssi_r,3), round(cw_avg,1), round(pw_avg,1), cw_h35, pw_h35, n_eff
+
+    rssi_7,  r7_avg_c,  r7_avg_p,  r7_h35c,  r7_h35p,  r7_days  = _recent_ssi(7)
+    rssi_14, r14_avg_c, r14_avg_p, r14_h35c, r14_h35p, r14_days = _recent_ssi(14)
+    def _sig(v):
+        if v is None: return "—"
+        return "STRONGER" if v > 1.05 else ("WEAKER" if v < 0.95 else "IN-LINE")
+    rsig_7  = _sig(rssi_7)
+    rsig_14 = _sig(rssi_14)
+
     # Mar-onwards additional metrics for summary cards
     mar_h40c = sum(1 for t in mar_tmax_c if t and t>=40)
     mar_h40p = sum(1 for t in mar_tmax_p if t and t>=40)
@@ -458,6 +502,11 @@ def compute_stats(data):
         "rain_curr": round(rain_c,1), "rain_prev": round(rain_p,1),
         "delta": round(delta,1), "ssi": round(ssi,3), "signal": signal,
         "days_counted": n_days,
+        # Recency SSI (trailing windows)
+        "rssi_7":  rssi_7,  "rsig_7":  rsig_7,
+        "rssi_14": rssi_14, "rsig_14": rsig_14,
+        "r7_avg_curr":  r7_avg_c,  "r7_avg_prev":  r7_avg_p,  "r7_h35_curr":  r7_h35c,  "r7_h35_prev":  r7_h35p,  "r7_days":  r7_days,
+        "r14_avg_curr": r14_avg_c, "r14_avg_prev": r14_avg_p, "r14_h35_curr": r14_h35c, "r14_h35_prev": r14_h35p, "r14_days": r14_days,
         # Mar-onwards metrics (for summary cards)
         "mar_avg_curr": round(mar_avg_c,1), "mar_avg_prev": round(mar_avg_p,1),
         "mar_delta": round(mar_delta,1), "mar_days": mar_days,
@@ -509,6 +558,28 @@ def generate_html(stats, dates):
     ni = len(stats)-ns-nw
     days = stats[0]["days_counted"]
 
+    # ── Pan-India Recency SSI (7d / 14d) ──
+    _r7  = [s["rssi_7"]  for s in stats if s.get("rssi_7")  is not None]
+    _r14 = [s["rssi_14"] for s in stats if s.get("rssi_14") is not None]
+    pssi_7  = round(sum(_r7)/len(_r7), 3)   if _r7  else None
+    pssi_14 = round(sum(_r14)/len(_r14),3) if _r14 else None
+    def _agg_sig(v):
+        if v is None: return "—"
+        return "STRONGER" if v > 1.05 else ("WEAKER" if v < 0.95 else "IN-LINE")
+    pssi_7_sig  = _agg_sig(pssi_7)
+    pssi_14_sig = _agg_sig(pssi_14)
+    ns_7  = sum(1 for s in stats if s.get("rsig_7")  == "STRONGER")
+    nw_7  = sum(1 for s in stats if s.get("rsig_7")  == "WEAKER")
+    ns_14 = sum(1 for s in stats if s.get("rsig_14") == "STRONGER")
+    nw_14 = sum(1 for s in stats if s.get("rsig_14") == "WEAKER")
+    r7_days  = stats[0].get("r7_days") if stats else None
+    r14_days = stats[0].get("r14_days") if stats else None
+    # Pan-India avg max for 7d / 14d window (city-avg of per-city window avg)
+    r7_avg_curr  = round(sa([s["r7_avg_curr"]  for s in stats if s.get("r7_avg_curr")  is not None]), 1)
+    r7_avg_prev  = round(sa([s["r7_avg_prev"]  for s in stats if s.get("r7_avg_prev")  is not None]), 1)
+    r14_avg_curr = round(sa([s["r14_avg_curr"] for s in stats if s.get("r14_avg_curr") is not None]), 1)
+    r14_avg_prev = round(sa([s["r14_avg_prev"] for s in stats if s.get("r14_avg_prev") is not None]), 1)
+
     # Mar-onwards aggregates (for summary cards — reflects summer, not winter)
     mpac = round(sa([s["mar_avg_curr"] for s in stats]),1)
     mpap = round(sa([s["mar_avg_prev"] for s in stats]),1)
@@ -524,9 +595,21 @@ def generate_html(stats, dates):
     mpan_dev = round(mpac - mpan_norm, 1) if mpan_norm else 0
     mn_above = sum(1 for s in stats if s["mar_dev"] is not None and s["mar_dev"] >= 1.5)
 
-    if pssi>1.05: ve,vt,vc = "🔥","Materially Stronger Summer — Bullish for Summer Plays","#F87171"
-    elif pssi<0.95: ve,vt,vc = "❄️","Weaker Summer — Cautious on Summer Plays","#60A5FA"
-    else: ve,vt,vc = "➡️","In-Line Summer — No Clear Alpha Signal","#A8A29E"
+    # Verdict is driven by 14d recent SSI (what clients react to), with seasonal SSI as context.
+    # Falls back to seasonal if recency unavailable (e.g. early in series).
+    primary_ssi = pssi_14 if pssi_14 is not None else pssi
+    if primary_ssi > 1.05: ve,vt,vc = "🔥","Recent Heat Surge — Bullish on Summer Plays","#F87171"
+    elif primary_ssi < 0.95: ve,vt,vc = "❄️","Weakening Recent Heat — Cautious","#60A5FA"
+    else: ve,vt,vc = "➡️","Recent Heat In-Line — No Clear Alpha Signal","#A8A29E"
+    # Detect divergence: recent strong, season weak (or vice versa)
+    divergence_note = ""
+    if pssi_14 is not None and pssi is not None:
+        if pssi_14 > 1.05 and pssi < 0.95:
+            divergence_note = "Recent surge has flipped a weak seasonal read — heat acceleration is the active signal."
+        elif pssi_14 < 0.95 and pssi > 1.05:
+            divergence_note = "Recent cooling despite strong season-to-date — momentum is fading."
+        elif abs(pssi_14 - pssi) >= 0.10:
+            divergence_note = "Notable spread between recent and seasonal — recency leads the narrative."
 
     ndc = max(len(s["daily_max_curr"]) for s in stats)
     ndp = max(len(s["daily_max_prev_full"]) for s in stats)
@@ -580,6 +663,10 @@ def generate_html(stats, dates):
         "hot40Curr":s["hot40_curr"],"hot30Curr":s["hot30_curr"],"hot30Prev":s["hot30_prev"],
         "rainCurr":s["rain_curr"],"rainPrev":s["rain_prev"],
         "ssi":s["ssi"],"signal":s["signal"],
+        "rssi7":s.get("rssi_7"),"rsig7":s.get("rsig_7"),
+        "rssi14":s.get("rssi_14"),"rsig14":s.get("rsig_14"),
+        "r7AvgCurr":s.get("r7_avg_curr"),"r7AvgPrev":s.get("r7_avg_prev"),"r7H35Curr":s.get("r7_h35_curr"),"r7H35Prev":s.get("r7_h35_prev"),
+        "r14AvgCurr":s.get("r14_avg_curr"),"r14AvgPrev":s.get("r14_avg_prev"),"r14H35Curr":s.get("r14_h35_curr"),"r14H35Prev":s.get("r14_h35_prev"),
         "avgNormal":s["avg_normal"],"devFromNormal":s["dev_from_normal"],"normalSignal":s["normal_signal"],
         "marAvgCurr":s["mar_avg_curr"],"marAvgPrev":s["mar_avg_prev"],"marDelta":s["mar_delta"],
         "marDev":s["mar_dev"],"marAvgNormal":s["mar_avg_normal"],
@@ -611,9 +698,19 @@ def generate_html(stats, dates):
         "marH30Curr":mt30c,"marH30Prev":mt30p,
         "marAvgNormal":mpan_norm,"marDev":mpan_dev,"marAboveNormal":mn_above,
         "panSSI":pssi,"strongerCount":ns,"weakerCount":nw,"inlineCount":ni,
+        # Recency SSI (trailing 7d and 14d) — primary client signal
+        "panSSI7":pssi_7,"panSSI7Signal":pssi_7_sig,"r7Days":r7_days,
+        "r7AvgCurr":r7_avg_curr,"r7AvgPrev":r7_avg_prev,
+        "r7Stronger":ns_7,"r7Weaker":nw_7,"r7Inline":len(stats)-ns_7-nw_7,
+        "panSSI14":pssi_14,"panSSI14Signal":pssi_14_sig,"r14Days":r14_days,
+        "r14AvgCurr":r14_avg_curr,"r14AvgPrev":r14_avg_prev,
+        "r14Stronger":ns_14,"r14Weaker":nw_14,"r14Inline":len(stats)-ns_14-nw_14,
         "verdictEmoji":ve,"verdictText":vt,"verdictColor":vc,
         "ssiSignal":"STRONGER" if pssi>1.05 else ("WEAKER" if pssi<0.95 else "IN-LINE"),
         "ssiBias":"Bullish" if pssi>1.05 else ("Cautious" if pssi<0.95 else "Neutral"),
+        "primarySSI":primary_ssi,
+        "primaryBias":"Bullish" if primary_ssi>1.05 else ("Cautious" if primary_ssi<0.95 else "Neutral"),
+        "divergenceNote":divergence_note,
         "generatedAt":gen,
         "chartAvgCurr":ca_c,"chartAvgPrev":ca_p,"chartNormal":cn,
         "chartHotCurr":ch_c,"chartHotPrev":ch_p,
@@ -797,7 +894,9 @@ tr:hover td{background:rgba(251,191,36,0.03);}
         <button class="vbtn" onclick="sortBy('dev',this)">vs Normal</button>
         <button class="vbtn" onclick="sortBy('onset',this)">Onset</button>
         <button class="vbtn" onclick="sortBy('hot',this)">Hot Days</button>
-        <button class="vbtn" onclick="sortBy('ssi',this)">SSI</button>
+        <button class="vbtn" onclick="sortBy('rssi14',this)">RSSI 14d</button>
+        <button class="vbtn" onclick="sortBy('rssi7',this)">RSSI 7d</button>
+        <button class="vbtn" onclick="sortBy('ssi',this)">SSI Season</button>
       </div>
     </div>
     <div class="tbl-wrap"><table><thead id="thead"></thead><tbody id="cityTable"></tbody></table></div>
@@ -875,6 +974,16 @@ tr:hover td{background:rgba(251,191,36,0.03);}
       <strong>Important:</strong> SSI is a relative (YoY) measure. A city can show SSI = 0.95 (WEAKER) even if it's 4°C above historical normal —
       because last year was even hotter. Always read SSI alongside "vs Normal" for the complete picture.<br><br>
 
+      <strong style="color:var(--t1);font-size:13px">━━ RSSI (RECENT SSI — 7d / 14d) ━━</strong><br><br>
+      Same formula as seasonal SSI, but computed on the <strong>trailing 7-day and 14-day windows</strong> only — compared against the same calendar window in the prior year.
+      Captures momentum that a Mar-to-date average dilutes.<br><br>
+      <strong>Why it matters:</strong> Clients react to what's happening <em>now</em>. A 0.91 seasonal SSI (weaker) can coexist with a 1.12 RSSI 14d (recent surge) —
+      the second number is what drives positioning. The header lists Recent (14d) first, with 7d and Season as secondary lenses.<br><br>
+      <strong>Verdict logic:</strong> The headline verdict is driven by RSSI 14d (falls back to seasonal SSI if recency is unavailable, e.g. very early in the series).
+      When recent and seasonal disagree by more than 0.10, a divergence note is surfaced inline.<br><br>
+      <strong>Caveats:</strong> 7d is reactive — a single rain spell or cloudy week can flip it. Use 14d as the anchor read, 7d for tactical confirmation.
+      With small bases (≤2 hot days last year), the Hot Days component uses the same dampened-difference logic as seasonal SSI to prevent distortion.<br><br>
+
       <strong style="color:var(--t1);font-size:13px">━━ vs 5yr NORMAL ━━</strong><br><br>
       Shows how current temperatures compare to the 2020-2024 average for the same calendar period.
       This is the same framework IMD uses in their bulletins (e.g. "7.6°C above normal").<br>
@@ -937,16 +1046,31 @@ function hmColor(d){if(d===undefined||d===null)return'var(--t3)';if(d>=3)return'
 // Badges
 document.getElementById('badges').innerHTML=`<span class="badge live">Open-Meteo</span><span class="badge">${D.startCurrent} → ${D.endCurrent}</span><span class="badge">${D.numCities} cities · ${D.daysTracked}d</span>`;
 
-// Verdict
+// Verdict — three SSI lenses (7d / 14d / Season). Recent leads.
+function ssiColor(v){if(v===null||v===undefined)return'var(--t3)';return v>1.05?'#F87171':v<0.95?'#60A5FA':'#A8A29E';}
+function fmtSSI(v){return (v===null||v===undefined)?'—':v.toFixed(2);}
+const r7 = D.panSSI7, r14 = D.panSSI14, season = D.panSSI;
 document.getElementById('verdict').innerHTML=`
-  <div class="ssi-block"><div class="ssi-big" style="color:${D.verdictColor}">${D.panSSI.toFixed(2)}</div><div class="ssi-label">SSI (Mar-Jun YoY)</div></div>
+  <div class="ssi-block" style="display:flex;gap:14px;align-items:flex-end;justify-content:flex-end;">
+    <div style="text-align:right;">
+      <div class="ssi-big" style="color:${ssiColor(r14)};font-size:44px;">${fmtSSI(r14)}</div>
+      <div class="ssi-label">Recent (14d)${D.r14Days?` · ${D.r14Days}d`:''}</div>
+    </div>
+    <div style="text-align:right;border-left:1px solid var(--bd);padding-left:14px;">
+      <div class="ssi-big" style="color:${ssiColor(r7)};font-size:32px;">${fmtSSI(r7)}</div>
+      <div class="ssi-label">Recent (7d)</div>
+    </div>
+    <div style="text-align:right;border-left:1px solid var(--bd);padding-left:14px;">
+      <div class="ssi-big" style="color:${ssiColor(season)};font-size:24px;opacity:0.8;">${fmtSSI(season)}</div>
+      <div class="ssi-label">Season (Mar+)</div>
+    </div>
+  </div>
   <h2 style="color:${D.verdictColor}">${D.verdictEmoji} ${D.verdictText}</h2>
-  <p>Mar onwards avg max (${D.marDays||21}d): <strong>${D.marAvgCurr}°C</strong> vs <strong>${D.marAvgPrev}°C</strong> (${sign(D.marDelta)}°C YoY).
-  vs 5yr normal: <strong>${D.marDev>=0?'+':''}${D.marDev}°C</strong> (${D.marAboveNormal||D.numAboveNormal}/${D.numCities} above normal).
-  30°C onset: <strong>${D.avgOnset30Diff>=0?'':'-'}${Math.abs(D.avgOnset30Diff)}d</strong> ${D.avgOnset30Diff<0?'earlier':'later'} (${D.onsetEarlier30}/${D.numCities} cities earlier).
-  35°C onset: <strong>${D.avgOnset35Diff>=0?'':'-'}${Math.abs(D.avgOnset35Diff)}d</strong> ${D.avgOnset35Diff<0?'earlier':'later'}.
-  ≥35°C city-days (Mar+): <strong>${D.marH35Curr||D.hot35Curr}</strong> vs ${D.marH35Prev||D.hot35Prev} (${sign((D.marH35Curr||D.hot35Curr)-(D.marH35Prev||D.hot35Prev))}).
-  → <strong>${D.ssiBias}</strong> for summer-sensitive consumer names.</p>`;
+  <p><strong>Last 14 days:</strong> avg max <strong>${D.r14AvgCurr}°C</strong> vs <strong>${D.r14AvgPrev}°C</strong> same window ${D.lastYear} (${sign((D.r14AvgCurr-D.r14AvgPrev).toFixed(1))}°C). RSSI ${fmtSSI(r14)} → ${D.panSSI14Signal} · ${D.r14Stronger}/${D.numCities} cities stronger.
+  ${D.divergenceNote?`<br><span style="color:var(--a4)">↳ ${D.divergenceNote}</span>`:''}
+  <br><strong>Season-to-date (Mar+, ${D.marDays||21}d):</strong> <strong>${D.marAvgCurr}°C</strong> vs <strong>${D.marAvgPrev}°C</strong> (${sign(D.marDelta)}°C YoY) · vs 5yr normal ${D.marDev>=0?'+':''}${D.marDev}°C · SSI ${fmtSSI(season)}.
+  <br>30°C onset <strong>${D.avgOnset30Diff>=0?'':'-'}${Math.abs(D.avgOnset30Diff)}d</strong> ${D.avgOnset30Diff<0?'earlier':'later'}; 35°C onset <strong>${D.avgOnset35Diff>=0?'':'-'}${Math.abs(D.avgOnset35Diff)}d</strong> ${D.avgOnset35Diff<0?'earlier':'later'}.
+  → <strong>${D.primaryBias}</strong> for summer-sensitive consumer names (driven by 14d).</p>`;
 
 // Cards
 const mpd=D.marDelta||D.panDelta, mh35d=(D.marH35Curr||D.hot35Curr)-(D.marH35Prev||D.hot35Prev), mh40d=(D.marH40Curr||D.hot40Curr)-(D.marH40Prev||D.hot40Prev);
@@ -957,7 +1081,9 @@ document.getElementById('cards').innerHTML=`
   <div class="card"><div class="lbl">35°C Onset (avg)</div><div class="val">${Math.abs(D.avgOnset35Diff)}d</div><div class="dt ${D.avgOnset35Diff<0?'dh':'dc'}">${D.avgOnset35Diff<0?'Earlier':'Later'} vs ${D.lastYear}</div></div>
   <div class="card"><div class="lbl">Hot Days ≥35°C (Mar+)</div><div class="val">${D.marH35Curr||D.hot35Curr}</div><div class="dt ${mh35d>0?'dh':'dc'}">${sign(mh35d)} vs ${D.lastYear}</div></div>
   <div class="card"><div class="lbl">Days ≥40°C (Mar+)</div><div class="val">${D.marH40Curr||D.hot40Curr}</div><div class="dt ${mh40d>0?'dh':'dc'}">${sign(mh40d)}</div></div>
-  <div class="card"><div class="lbl">SSI (YoY)</div><div class="val" style="color:${D.verdictColor}">${D.panSSI.toFixed(2)}</div><div class="dt ${D.panSSI>1.05?'dh':D.panSSI<0.95?'dc':'dn'}">${D.ssiSignal}</div></div>`;
+  <div class="card" style="border-color:${ssiColor(r14)};border-width:1.5px;"><div class="lbl">RSSI 14d (Recent)</div><div class="val" style="color:${ssiColor(r14)}">${fmtSSI(r14)}</div><div class="dt ${r14>1.05?'dh':r14<0.95?'dc':'dn'}">${D.panSSI14Signal} · ${D.r14Stronger}/${D.numCities}↑</div></div>
+  <div class="card"><div class="lbl">RSSI 7d</div><div class="val" style="color:${ssiColor(r7)}">${fmtSSI(r7)}</div><div class="dt ${r7>1.05?'dh':r7<0.95?'dc':'dn'}">${D.panSSI7Signal} · ${D.r7Stronger}/${D.numCities}↑</div></div>
+  <div class="card"><div class="lbl">SSI Season (Mar+)</div><div class="val" style="color:${ssiColor(season)};opacity:0.85">${D.panSSI.toFixed(2)}</div><div class="dt ${D.panSSI>1.05?'dh':D.panSSI<0.95?'dc':'dn'}">${D.ssiSignal}</div></div>`;
 
 // Legend
 const legends={
@@ -1072,7 +1198,7 @@ function renderHeatmap(){
 }
 
 // ── City Table ──
-document.getElementById('thead').innerHTML=`<tr><th>City</th><th>Region</th><th>Avg Max</th><th>vs ${D.lastYear}</th><th>vs Normal</th><th>30°C On</th><th>35°C On</th><th>≥35°C</th><th>≥40°C</th><th>SSI</th><th>Signal</th></tr>`;
+document.getElementById('thead').innerHTML=`<tr><th>City</th><th>Region</th><th>Avg Max</th><th>vs ${D.lastYear}</th><th>vs Normal</th><th>30°C On</th><th>35°C On</th><th>≥35°C</th><th>≥40°C</th><th>RSSI 14d</th><th>RSSI 7d</th><th>SSI Season</th><th>Signal</th></tr>`;
 
 function renderTable(){
   let s=[...D.cities];
@@ -1081,6 +1207,8 @@ function renderTable(){
   else if(currentSort==='onset')s.sort((a,b)=>(a.onset35diff||999)-(b.onset35diff||999));
   else if(currentSort==='hot')s.sort((a,b)=>b.hot35Curr-a.hot35Curr);
   else if(currentSort==='ssi')s.sort((a,b)=>b.ssi-a.ssi);
+  else if(currentSort==='rssi14')s.sort((a,b)=>(b.rssi14??-99)-(a.rssi14??-99));
+  else if(currentSort==='rssi7')s.sort((a,b)=>(b.rssi7??-99)-(a.rssi7??-99));
   document.getElementById('cityTable').innerHTML=s.map(c=>{
     const sc=c.signal==='STRONGER'?'sig-s':c.signal==='WEAKER'?'sig-w':'sig-i';
     const d35=c.onset35diff;
@@ -1094,7 +1222,9 @@ function renderTable(){
       <td style="color:var(--r4)">${c.onset35c?c.onset35c.slice(5):'—'} <span style="color:${d35<0?'var(--g4)':d35>0?'var(--r5)':'var(--t3)'};font-size:9px">${d35!==null?(d35<0?Math.abs(d35)+'d↑':d35>0?d35+'d↓':'='):'—'}</span></td>
       <td>${c.hot35Curr} <span style="color:var(--t3);font-size:9px">vs ${c.hot35Prev}</span></td>
       <td style="color:${c.hot40Curr>0?'var(--r4)':'var(--t3)'}">${c.hot40Curr}</td>
-      <td style="color:${c.ssi>1.05?'var(--r4)':c.ssi<0.95?'var(--b4)':'var(--t2)'};font-weight:600">${c.ssi.toFixed(2)}</td>
+      <td style="color:${c.rssi14==null?'var(--t3)':c.rssi14>1.05?'var(--r4)':c.rssi14<0.95?'var(--b4)':'var(--t2)'};font-weight:700">${c.rssi14==null?'—':c.rssi14.toFixed(2)}</td>
+      <td style="color:${c.rssi7==null?'var(--t3)':c.rssi7>1.05?'var(--r4)':c.rssi7<0.95?'var(--b4)':'var(--t2)'}">${c.rssi7==null?'—':c.rssi7.toFixed(2)}</td>
+      <td style="color:${c.ssi>1.05?'var(--r4)':c.ssi<0.95?'var(--b4)':'var(--t2)'};opacity:0.85">${c.ssi.toFixed(2)}</td>
       <td><span class="signal ${sc}">${c.signal}</span></td></tr>`;
   }).join('');
 }
