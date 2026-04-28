@@ -820,41 +820,6 @@ tr:hover td{background:rgba(251,191,36,0.03);}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
-
-<!-- Password Gate -->
-<div id="authGate" style="position:fixed;top:0;left:0;width:100%;height:100%;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;font-family:'DM Sans',sans-serif;">
-  <div style="background:var(--bg2);border:1px solid var(--bd);border-radius:12px;padding:40px;text-align:center;max-width:380px;width:90%;">
-    <div style="font-size:40px;margin-bottom:8px;">☀</div>
-    <div style="font-family:'Playfair Display',serif;font-size:20px;font-weight:700;color:var(--t1);margin-bottom:4px;">Summer Strength Monitor</div>
-    <div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:1px;margin-bottom:24px;">Restricted Access</div>
-    <input type="password" id="authPass" placeholder="Enter password" style="width:100%;padding:10px 14px;background:var(--bg3);border:1px solid var(--bd);color:var(--t1);border-radius:6px;font-size:14px;font-family:'DM Sans',sans-serif;outline:none;text-align:center;margin-bottom:12px;" autofocus>
-    <div id="authError" style="font-size:12px;color:var(--r4);margin-bottom:12px;display:none;">Incorrect password</div>
-    <button id="authBtn" style="width:100%;padding:10px;background:var(--a6);border:none;color:#FFFBEB;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;">Enter</button>
-  </div>
-</div>
-<script>
-(function(){
-  var h = '0d36df7acce9ddfbabde419927d33d7f1c65f9d709aeaa4d6ed2020190df8c40';
-  function sha256(s){return crypto.subtle.digest('SHA-256',new TextEncoder().encode(s)).then(function(b){return Array.from(new Uint8Array(b)).map(function(x){return x.toString(16).padStart(2,'0')}).join('')})}
-  function check(){
-    var p=document.getElementById('authPass').value;
-    sha256(p).then(function(d){
-      if(d===h){
-        document.getElementById('authGate').style.display='none';
-        sessionStorage.setItem('sm_auth','1');
-      } else {
-        document.getElementById('authError').style.display='block';
-        document.getElementById('authPass').value='';
-        document.getElementById('authPass').focus();
-      }
-    });
-  }
-  if(sessionStorage.getItem('sm_auth')==='1'){document.getElementById('authGate').style.display='none';}
-  document.getElementById('authBtn').addEventListener('click',check);
-  document.getElementById('authPass').addEventListener('keydown',function(e){if(e.key==='Enter')check();});
-})();
-</script>
-
 <div class="noise"></div><div class="glow"></div>
 <div class="wrap">
   <header><div><h1>☀ Summer Strength Monitor</h1><div class="sub">India Consumer Equities — Full Jan-Jun Pre-Monsoon Tracker</div></div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;"><div class="badges" id="badges"></div><button onclick="exportExcel()" style="padding:6px 14px;border-radius:6px;border:1px solid var(--a6);background:var(--bg3);color:var(--a4);font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;cursor:pointer;">📥 Download Excel</button></div></header>
