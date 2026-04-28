@@ -402,4 +402,176 @@ function renderOnset(){
     </div>
     <div class="onset-card"><h4>First ≥35°C (Impulse Beverage Threshold)</h4>
       ${sorted35.map(c=>{const diff=c.onset35diff;const dc=diff<0?'var(--g4)':diff>0?'var(--r4)':'var(--t3)';
-        return `<div class="onset-row"><span style="color:var(--t2)">${c.city}</span><span style="font-family:'JetBrains Mono';font-size:10px;"><span style="color:var(--r4)">${c.onset35c?c.onset35c.slice(5):'—'}</span> <spa
+        return `<div class="onset-row"><span style="color:var(--t2)">${c.city}</span><span style="font-family:'JetBrains Mono';font-size:10px;"><span style="color:var(--r4)">${c.onset35c?c.onset35c.slice(5):'—'}</span> <span style="color:var(--t3)">vs ${c.onset35p?c.onset35p.slice(5):'—'}</span> <span style="color:${dc};font-weight:600">${diff!==null?(diff<0?Math.abs(diff)+'d earlier':diff>0?diff+'d later':'same'):'—'}</span></span></div>`;}).join('')}
+    </div>
+  </div>`;
+}
+
+// ── Monthly Heatmap ──
+function renderHeatmap(){
+  const months=['Jan','Feb','Mar','Apr','May','Jun'];
+  let html='<div class="hm-header"></div>';
+  months.forEach(m=>{html+=`<div class="hm-header">${m}</div>`;});
+  D.cities.forEach(c=>{
+    html+=`<div class="hm-city">${c.city}</div>`;
+    for(let m=1;m<=6;m++){
+      const d=c.monthlyDev[m];
+      html+=`<div class="hm-cell" style="background:${hmBg(d)};color:${hmColor(d)}">${d!==undefined&&d!==null?(d>=0?'+':'')+d.toFixed(1):'—'}</div>`;
+    }
+  });
+  document.getElementById('heatmap').innerHTML=html;
+}
+
+// ── City Table ──
+document.getElementById('thead').innerHTML=`<tr><th>City</th><th>Region</th><th>Avg Max</th><th>vs ${D.lastYear}</th><th>vs Normal</th><th>30°C On</th><th>35°C On</th><th>≥35°C</th><th>≥40°C</th><th>RSSI 14d</th><th>RSSI 7d</th><th>SSI Season</th><th>Signal</th></tr>`;
+
+function renderTable(){
+  let s=[...D.cities];
+  if(currentSort==='delta')s.sort((a,b)=>(b.marDelta||b.delta)-(a.marDelta||a.delta));
+  else if(currentSort==='dev')s.sort((a,b)=>(b.marDev||b.devFromNormal||0)-(a.marDev||a.devFromNormal||0));
+  else if(currentSort==='onset')s.sort((a,b)=>(a.onset35diff||999)-(b.onset35diff||999));
+  else if(currentSort==='hot')s.sort((a,b)=>b.hot35Curr-a.hot35Curr);
+  else if(currentSort==='ssi')s.sort((a,b)=>b.ssi-a.ssi);
+  else if(currentSort==='rssi14')s.sort((a,b)=>(b.rssi14??-99)-(a.rssi14??-99));
+  else if(currentSort==='rssi7')s.sort((a,b)=>(b.rssi7??-99)-(a.rssi7??-99));
+  document.getElementById('cityTable').innerHTML=s.map(c=>{
+    const sc=c.signal==='STRONGER'?'sig-s':c.signal==='WEAKER'?'sig-w':'sig-i';
+    const d35=c.onset35diff;
+    return `<tr>
+      <td class="city">${c.city}</td>
+      <td style="color:var(--t3);font-family:'DM Sans';font-size:9px">${c.region}</td>
+      <td style="color:${tc(c.marAvgCurr||c.avgMaxCurr)};font-weight:600">${(c.marAvgCurr||c.avgMaxCurr)}°C</td>
+      <td style="color:${(c.marDelta||c.delta)>=0?'var(--r4)':'var(--b4)'};font-weight:600">${(c.marDelta||c.delta)>=0?'+':''}${(c.marDelta||c.delta)}°C</td>
+      <td style="color:${devColor((c.marDev!==undefined&&c.marDev!==null)?c.marDev:(c.devFromNormal||0))}">${(c.marDev!==undefined&&c.marDev!==null)?(c.marDev>=0?'+':'')+c.marDev+'°C':(c.devFromNormal!==null?(c.devFromNormal>=0?'+':'')+c.devFromNormal+'°C':'—')}</td>
+      <td style="color:var(--a4)">${c.onset30c?c.onset30c.slice(5):'—'}</td>
+      <td style="color:var(--r4)">${c.onset35c?c.onset35c.slice(5):'—'} <span style="color:${d35<0?'var(--g4)':d35>0?'var(--r5)':'var(--t3)'};font-size:9px">${d35!==null?(d35<0?Math.abs(d35)+'d↑':d35>0?d35+'d↓':'='):'—'}</span></td>
+      <td>${c.hot35Curr} <span style="color:var(--t3);font-size:9px">vs ${c.hot35Prev}</span></td>
+      <td style="color:${c.hot40Curr>0?'var(--r4)':'var(--t3)'}">${c.hot40Curr}</td>
+      <td style="color:${c.rssi14==null?'var(--t3)':c.rssi14>1.05?'var(--r4)':c.rssi14<0.95?'var(--b4)':'var(--t2)'};font-weight:700">${c.rssi14==null?'—':c.rssi14.toFixed(2)}</td>
+      <td style="color:${c.rssi7==null?'var(--t3)':c.rssi7>1.05?'var(--r4)':c.rssi7<0.95?'var(--b4)':'var(--t2)'}">${c.rssi7==null?'—':c.rssi7.toFixed(2)}</td>
+      <td style="color:${c.ssi>1.05?'var(--r4)':c.ssi<0.95?'var(--b4)':'var(--t2)'};opacity:0.85">${c.ssi.toFixed(2)}</td>
+      <td><span class="signal ${sc}">${c.signal}</span></td></tr>`;
+  }).join('');
+}
+
+function sortBy(s,btn){currentSort=s;btn.parentElement.querySelectorAll('.vbtn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderTable();}
+
+// ── Regions ──
+function renderRegions(){
+  const R={};D.cities.forEach(c=>{if(!R[c.region])R[c.region]=[];R[c.region].push(c);});
+  document.getElementById('regionGrid').innerHTML=Object.entries(R).map(([n,cs])=>{
+    const ad=(cs.reduce((s,c)=>s+(c.marDelta||c.delta||0),0)/cs.length).toFixed(1);
+    const devs=cs.filter(c=>(c.marDev||c.devFromNormal)!==null&&(c.marDev||c.devFromNormal)!==undefined);
+    const avgDev=devs.length?(devs.reduce((s,c)=>s+(c.marDev||c.devFromNormal||0),0)/devs.length).toFixed(1):'—';
+    return `<div class="region"><div class="rn">${n}<span style="float:right;font-family:'JetBrains Mono';font-size:10px"><span style="color:${parseFloat(ad)>=0?'var(--r4)':'var(--b4)'}">${parseFloat(ad)>=0?'+':''}${ad}° YoY</span> · <span style="color:${devColor(parseFloat(avgDev))}">${parseFloat(avgDev)>=0?'+':''}${avgDev}° v.n</span></span></div>
+    ${cs.map(c=>`<div class="row"><span class="cn">${c.city}</span><span><span class="tv" style="color:${tc(c.marAvgCurr||c.avgMaxCurr)}">${(c.marAvgCurr||c.avgMaxCurr)}°C</span><span style="color:${(c.marDelta||c.delta)>=0?'var(--r4)':'var(--b4)'};font-family:'JetBrains Mono';font-size:9px;margin-left:4px">${(c.marDelta||c.delta)>=0?'+':''}${(c.marDelta||c.delta)}°</span></span></div>`).join('')}</div>`;
+  }).join('');
+}
+
+
+// Footer
+document.getElementById('footer').innerHTML=`Summer Strength Monitor v4 — Generated ${D.generatedAt} — Open-Meteo (CC BY 4.0) + Visual Crossing (Mumbai METAR) — Anand Consumer Research`;
+
+// ── Excel Export ──
+function exportExcel(){
+  const wb = XLSX.utils.book_new();
+  const yr=D.year, ly=D.lastYear;
+
+  // Sheet 1: Summary
+  const sumRows = [
+    ['Summer Strength Monitor — Summary', '','',''],
+    ['Generated', D.generatedAt,'',''],
+    ['Period', D.startCurrent + ' to ' + D.endCurrent,'',''],
+    ['Cities', D.numCities,'',''],
+    ['','','',''],
+    ['Metric (Mar onwards)', yr, ly, 'Delta'],
+    ['Avg Max Temp (°C)', D.marAvgCurr, D.marAvgPrev, D.marDelta],
+    ['vs 5yr Normal (°C)', D.marDev||D.panDev, '', ''],
+    ['Cities Above Normal', D.marAboveNormal||D.numAboveNormal, '', ''],
+    ['Hot Days ≥35°C (city-days)', D.marH35Curr||D.hot35Curr, D.marH35Prev||D.hot35Prev, (D.marH35Curr||D.hot35Curr)-(D.marH35Prev||D.hot35Prev)],
+    ['Days ≥40°C', D.marH40Curr||D.hot40Curr, D.marH40Prev||D.hot40Prev, ''],
+    ['SSI (YoY)', D.panSSI, '', D.ssiSignal],
+    ['30°C Onset Delta (avg days)', D.avgOnset30Diff, '', D.avgOnset30Diff<0?'Earlier':'Later'],
+    ['35°C Onset Delta (avg days)', D.avgOnset35Diff, '', D.avgOnset35Diff<0?'Earlier':'Later'],
+  ];
+  const ws1 = XLSX.utils.aoa_to_sheet(sumRows);
+  ws1['!cols'] = [{wch:30},{wch:12},{wch:12},{wch:12}];
+  XLSX.utils.book_append_sheet(wb, ws1, 'Summary');
+
+  // Sheet 2: City Data (Mar onwards)
+  const cityHeader = ['City','Region','Avg Max '+yr,'Avg Max '+ly,'YoY Delta','vs Normal','5yr Normal',
+    '30°C Onset '+yr,'30°C Onset '+ly,'30°C Delta (days)',
+    '35°C Onset '+yr,'35°C Onset '+ly,'35°C Delta (days)',
+    'Hot Days ≥35 ('+yr+')','Hot Days ≥35 ('+ly+')','Days ≥40','SSI','Signal'];
+  const cityRows = D.cities.map(c=>[
+    c.city, c.region,
+    c.marAvgCurr||c.avgMaxCurr, c.marAvgPrev||c.avgMaxPrev, c.marDelta||c.delta,
+    c.marDev!==undefined&&c.marDev!==null?c.marDev:(c.devFromNormal||''),
+    c.marAvgNormal||c.avgNormal||'',
+    c.onset30c||'', c.onset30p||'', c.onset30diff!==null?c.onset30diff:'',
+    c.onset35c||'', c.onset35p||'', c.onset35diff!==null?c.onset35diff:'',
+    c.hot35Curr, c.hot35Prev, c.hot40Curr, c.ssi, c.signal
+  ]);
+  const ws2 = XLSX.utils.aoa_to_sheet([cityHeader, ...cityRows]);
+  ws2['!cols'] = [{wch:16},{wch:8},{wch:10},{wch:10},{wch:9},{wch:9},{wch:10},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12},{wch:10},{wch:10},{wch:7},{wch:6},{wch:10}];
+  XLSX.utils.book_append_sheet(wb, ws2, 'City Data');
+
+  // Sheet 3: Monthly Heatmap (deviation from normal)
+  const mths = ['Jan','Feb','Mar','Apr','May','Jun'];
+  const hmHeader = ['City','Region',...mths.map(m=>m+' Avg °C'),...mths.map(m=>m+' Normal °C'),...mths.map(m=>m+' Dev °C')];
+  const hmRows = D.cities.map(c=>{
+    const row = [c.city, c.region];
+    for(let m=1;m<=6;m++) row.push(c.monthlyCurr&&c.monthlyCurr[m]!==undefined?c.monthlyCurr[m]:'');
+    for(let m=1;m<=6;m++) row.push(c.monthlyNorm&&c.monthlyNorm[m]!==undefined?c.monthlyNorm[m]:'');
+    for(let m=1;m<=6;m++) row.push(c.monthlyDev&&c.monthlyDev[m]!==undefined?c.monthlyDev[m]:'');
+    return row;
+  });
+  const ws3 = XLSX.utils.aoa_to_sheet([hmHeader, ...hmRows]);
+  XLSX.utils.book_append_sheet(wb, ws3, 'Monthly Heatmap');
+
+  // Sheet 4: Daily Pan-India (chart data)
+  const maxLen = Math.max(D.chartAvgCurr.length, D.chartAvgPrev.length, D.chartNormal.length);
+  const dailyHeader = ['Day of Season','Avg Max '+yr,'Avg Max '+ly,'5yr Normal','Cities ≥35 '+yr,'Cities ≥35 '+ly,
+    'Cum ≥30 '+yr,'Cum ≥35 '+yr,'Cum ≥30 '+ly,'Cum ≥35 '+ly,'Rain '+yr,'Rain '+ly];
+  const dailyRows = [];
+  for(let i=0;i<maxLen;i++){
+    dailyRows.push([i+1,
+      i<D.chartAvgCurr.length?D.chartAvgCurr[i]:'',
+      i<D.chartAvgPrev.length?D.chartAvgPrev[i]:'',
+      i<D.chartNormal.length?D.chartNormal[i]:'',
+      D.chartHot35Curr&&i<D.chartHot35Curr.length?D.chartHot35Curr[i]:'',
+      i<(D.chartHot35Prev||D.chartHotPrev||[]).length?(D.chartHot35Prev||D.chartHotPrev)[i]:'',
+      i<D.chartCum30Curr.length?D.chartCum30Curr[i]:'',
+      i<D.chartCum35Curr.length?D.chartCum35Curr[i]:'',
+      i<D.chartCum30Prev.length?D.chartCum30Prev[i]:'',
+      i<D.chartCum35Prev.length?D.chartCum35Prev[i]:'',
+      i<D.chartRainCurr.length?D.chartRainCurr[i]:'',
+      i<D.chartRainPrev.length?D.chartRainPrev[i]:'',
+    ]);
+  }
+  const ws4 = XLSX.utils.aoa_to_sheet([dailyHeader, ...dailyRows]);
+  XLSX.utils.book_append_sheet(wb, ws4, 'Daily Data');
+
+  // Sheet 5: Heating Rate (weekly)
+  const hrHeader = ['Week','Avg Max '+yr,'Avg Max '+ly,'5yr Normal'];
+  const hrRows = [];
+  const hrLen = Math.max((D.chartRateCurr||[]).length,(D.chartRatePrev||[]).length,(D.chartRateNorm||[]).length);
+  for(let i=0;i<hrLen;i++){
+    hrRows.push([i+1,
+      D.chartRateCurr&&i<D.chartRateCurr.length?D.chartRateCurr[i]:'',
+      D.chartRatePrev&&i<D.chartRatePrev.length?D.chartRatePrev[i]:'',
+      D.chartRateNorm&&i<D.chartRateNorm.length?D.chartRateNorm[i]:'',
+    ]);
+  }
+  const ws5 = XLSX.utils.aoa_to_sheet([hrHeader, ...hrRows]);
+  XLSX.utils.book_append_sheet(wb, ws5, 'Heating Rate');
+
+  XLSX.writeFile(wb, 'summer_strength_monitor_' + D.year + '.xlsx');
+}
+
+// ── INIT ──
+drawChart('avg');renderTable();renderOnset();renderHeatmap();renderRegions();
+window.addEventListener('resize',()=>drawChart(currentView));
+</script>
+</body>
+</html>
