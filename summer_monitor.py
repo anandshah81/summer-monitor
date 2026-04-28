@@ -1245,7 +1245,7 @@ function renderRegions(){
 
 
 // Footer
-document.getElementById('footer').innerHTML=`Summer Strength Monitor v4 — Generated ${D.generatedAt} — Open-Meteo (CC BY 4.0) + Visual Crossing (Mumbai METAR) — Axis Capital Consumer Research`;
+document.getElementById('footer').innerHTML=`Summer Strength Monitor v4 — Generated ${D.generatedAt} — Open-Meteo (CC BY 4.0) + Visual Crossing (Mumbai METAR) — Anand Consumer Research`;
 
 // ── Excel Export ──
 function exportExcel(){
